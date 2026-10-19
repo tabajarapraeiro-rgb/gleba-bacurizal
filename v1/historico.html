@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gleba Bacurizal – Histórico de abertura</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.2.1/ol.css">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d2421; --muted: #5d6a64; --line: #d9dfdc;
+    --accent: #2f7d4f; --accent-fg: #ffffff; --panel: rgba(255,255,255,.95);
+    --open: #ff7800; --bar: #c9d4ce;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121614; --fg: #e8ecea; --muted: #9aa7a1; --line: #2c3430;
+            --accent: #4fae76; --accent-fg: #0d120f; --panel: rgba(22,27,25,.95); --bar: #3a4540; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .tabs { position: absolute; top: 0; left: 0; right: 0; height: 44px; z-index: 3; display: flex; align-items: center;
+    gap: 4px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .tabs b { margin-right: 10px; font-size: 15px; }
+  .tabs a { padding: 7px 12px; border-radius: 6px; color: var(--fg); text-decoration: none; }
+  .tabs a.on { background: var(--accent); color: var(--accent-fg); }
+  #map { position: absolute; top: 44px; left: 0; right: 0; bottom: 0; }
+  .panel { position: absolute; top: 56px; left: 12px; z-index: 2; width: 330px; max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 68px); overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.18);
+    padding: 12px 14px; }
+  .ano { font-size: 40px; font-weight: 700; line-height: 1; }
+  .data { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .kpi { display: flex; gap: 10px; margin: 10px 0 4px; }
+  .kpi div { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  .kpi small { display: block; color: var(--muted); font-size: 11px; }
+  .kpi strong { font-size: 18px; }
+  .delta { font-size: 12px; color: var(--muted); }
+  .fonte { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .nota { font-size: 12px; margin-top: 8px; padding: 6px 8px; border-left: 3px solid var(--open); background: rgba(255,120,0,.08); }
+  .ctrl { display: flex; gap: 6px; align-items: center; margin: 10px 0 4px; }
+  button { font: inherit; border: 1px solid var(--line); background: transparent; color: var(--fg); padding: 5px 10px;
+    border-radius: 6px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  label { display: flex; gap: 6px; align-items: center; margin: 4px 0; cursor: pointer; }
+  svg { display: block; width: 100%; height: 120px; margin-top: 8px; }
+  svg rect { cursor: pointer; }
+  .legend i { display: inline-block; width: 12px; height: 10px; vertical-align: middle; margin-right: 4px;
+    background: rgba(255,120,0,.5); border: 1px solid var(--open); }
+  @media (max-width: 600px) { .panel { top: auto; bottom: 10px; max-height: 46vh; width: auto; right: 12px; }
+    .ano { font-size: 30px; } }
+</style>
+</head>
+<body>
+<nav class="tabs">
+  <b>Gleba Bacurizal</b>
+  <a href="lotes.html">Ortofoto e lotes</a>
+  <a href="historico.html" class="on">Histórico de abertura</a>
+</nav>
+<div id="map"></div>
+<section class="panel">
+  <div class="ano" id="ano">—</div>
+  <div class="data" id="data"></div>
+  <div class="kpi">
+    <div><small>Área já aberta (acumulada)</small><strong id="ha">—</strong></div>
+    <div><small>% da gleba (1.684,90 ha)</small><strong id="pct">—</strong></div>
+  </div>
+  <div class="delta" id="delta"></div>
+  <div class="fonte" id="fonte"></div>
+  <div class="nota" id="nota" hidden></div>
+  <div class="ctrl">
+    <button id="prev" aria-label="Ano anterior">◀</button>
+    <button id="play">▶ Animar</button>
+    <button id="next" aria-label="Próximo ano">▶</button>
+  </div>
+  <input type="range" id="slider" min="0" max="0" value="0" aria-label="Ano">
+  <label><input type="checkbox" id="mask" checked> <span class="legend"><i></i>Já aberta &nbsp;<i style="background:rgba(230,20,20,.6);border-color:#e61414"></i>Aberta neste ano</span></label>
+  <label><input type="checkbox" id="lotes"> Mostrar lotes</label>
+  <svg id="chart" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Área aberta por ano"></svg>
+  <div class="fonte">Clique numa barra para ir ao ano. Altura = área já aberta (nunca diminui). Vermelho = aberta naquele ano. Barras claras = imagens antigas (estimativa); escuras = MapBiomas.</div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.12.1/dist/proj4.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ol@10.2.1/dist/ol.js"></script>
+<script>
+const UTM = 'EPSG:31981';
+proj4.defs(UTM, '+proj=utm +zone=21 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs');
+ol.proj.proj4.register(proj4);
+const AREA = 1684.9015;
+const fmt = (v, d = 1) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+fetch('historico/serie.json', { cache: 'no-cache' }).then(r => r.json()).then(S => {
+  const ext = S.extent, anos = S.anos, v = S.versao ? '?v=' + S.versao : '';
+  anos.forEach(a => { a.img += v; if (a.mask) a.mask += v; });
+  const img = new ol.layer.Image(), mask = new ol.layer.Image({ opacity: 0.6 });
+  const geo = new ol.format.GeoJSON({ dataProjection: 'EPSG:4326', featureProjection: UTM });
+  const perim = new ol.layer.Vector({ source: new ol.source.Vector(),
+    style: [new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,.6)', width: 4.5 }) }),
+            new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#ffd84a', width: 2 }) })] });
+  const lotes = new ol.layer.Vector({ visible: false, source: new ol.source.Vector(),
+    style: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.8)', width: 1 }) }) });
+  const map = new ol.Map({ target: 'map', layers: [img, mask, lotes, perim],
+    view: new ol.View({ projection: UTM, extent: ext, constrainOnlyCenter: true }),
+    controls: ol.control.defaults.defaults().extend([new ol.control.ScaleLine()]) });
+  [[perim, 'perimetro.geojson'], [lotes, 'lotes.geojson']].forEach(([l, u]) =>
+    fetch(u).then(r => r.json()).then(j => l.getSource().addFeatures(geo.readFeatures(j))));
+  map.getView().fit(ext, { padding: [20, 20, 20, window.innerWidth > 700 ? 360 : 20] });
+
+  const src = f => new ol.source.ImageStatic({ url: f, imageExtent: ext, projection: UTM, interpolate: true });
+  anos.forEach(a => { new Image().src = a.img; if (a.mask) new Image().src = a.mask; });
+
+  const slider = document.getElementById('slider'); slider.max = anos.length - 1;
+  let i = anos.length - 1;
+  function show(k) {
+    i = Math.max(0, Math.min(anos.length - 1, k)); slider.value = i;
+    const a = anos[i], prev = anos.slice(0, i).reverse().find(x => x.area_ha != null);
+    img.setSource(src(a.img));
+    mask.setSource(a.mask ? src(a.mask) : null);
+    document.getElementById('ano').textContent = a.ano;
+    document.getElementById('data').textContent = `Imagem de ${a.data.split('-').reverse().join('/')} · ${a.sensor}`;
+    document.getElementById('ha').textContent = a.area_ha != null ? fmt(a.area_ha) + ' ha' : '—';
+    document.getElementById('pct').textContent = a.area_ha != null ? fmt(100 * a.area_ha / AREA) + '%' : '—';
+    let d = '';
+    if (prev && a.nova_ha != null) d = `Aberta desde ${prev.ano}: +${fmt(a.nova_ha)} ha`;
+    if (a.em_uso_ha != null) d += (d ? ' · ' : '') + `Em uso como pasto/lavoura neste ano: ${fmt(a.em_uso_ha)} ha (o restante rebrotou)`;
+    document.getElementById('delta').textContent = d;
+    document.getElementById('fonte').textContent = 'Área: ' + a.fonte_area + (a.fonte_area.startsWith('Estim') ? ' – precisão aproximada' : '');
+    const n = document.getElementById('nota'); n.hidden = !a.nota; n.textContent = a.nota || '';
+    chart.querySelectorAll('rect').forEach((r, j) => r.setAttribute('stroke', j === i ? 'var(--fg)' : 'none'));
+  }
+  const chart = document.getElementById('chart'), bw = 320 / anos.length;
+  chart.innerHTML = anos.map((a, j) => {
+    const h = a.area_ha ? 108 * a.area_ha / AREA : 0;
+    const hn = a.nova_ha ? 108 * a.nova_ha / AREA : 0;
+    const col = a.fonte_area.startsWith('Map') ? 'var(--open)' : 'rgba(255,120,0,.45)';
+    const nova = hn > 0.3 ? `<rect x="${j * bw + .5}" y="${112 - h}" width="${Math.max(bw - 1, 1)}" height="${hn}" fill="#e61414" pointer-events="none"/>` : '';
+    return `<rect x="${j * bw + .5}" y="${112 - h}" width="${Math.max(bw - 1, 1)}" height="${h}" fill="${col}" stroke-width="1"><title>${a.ano}: ${a.area_ha != null ? fmt(a.area_ha) + ' ha já abertos' : 'sem dado'}</title></rect>` + nova;
+  }).join('') + `<line x1="0" y1="112" x2="320" y2="112" stroke="var(--line)"/>
+    <text x="2" y="10" font-size="9" fill="var(--muted)">100% = 1.685 ha</text>
+    <text x="2" y="120" font-size="8" fill="var(--muted)">${anos[0].ano}</text>
+    <text x="318" y="120" font-size="8" fill="var(--muted)" text-anchor="end">${anos[anos.length - 1].ano}</text>`;
+  chart.querySelectorAll('rect').forEach((r, j) => r.addEventListener('click', () => { stop(); show(j); }));
+
+  let timer = null;
+  const stop = () => { clearInterval(timer); timer = null; document.getElementById('play').textContent = '▶ Animar'; };
+  document.getElementById('play').onclick = () => {
+    if (timer) return stop();
+    if (i === anos.length - 1) show(0);
+    document.getElementById('play').textContent = '⏸ Pausar';
+    timer = setInterval(() => i < anos.length - 1 ? show(i + 1) : stop(), 900);
+  };
+  document.getElementById('prev').onclick = () => { stop(); show(i - 1); };
+  document.getElementById('next').onclick = () => { stop(); show(i + 1); };
+  slider.oninput = e => { stop(); show(+e.target.value); };
+  document.getElementById('mask').onchange = e => mask.setVisible(e.target.checked);
+  document.getElementById('lotes').onchange = e => lotes.setVisible(e.target.checked);
+  document.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') document.getElementById('prev').click();
+    if (e.key === 'ArrowRight') document.getElementById('next').click(); });
+  show(0);
+});
+</script>
+</body>
+</html>

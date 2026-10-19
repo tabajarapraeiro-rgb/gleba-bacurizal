@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gleba Bacurizal – Ortofoto</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.2.1/ol.css">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d2421; --muted: #5d6a64; --line: #d9dfdc;
+    --accent: #2f7d4f; --accent-fg: #ffffff; --panel: rgba(255,255,255,.94);
+    --measure: #ffcc00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121614; --fg: #e8ecea; --muted: #9aa7a1; --line: #2c3430;
+            --accent: #4fae76; --accent-fg: #0d120f; --panel: rgba(22,27,25,.94); }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #map { position: absolute; top: 44px; left: 0; right: 0; bottom: 0; }
+  .tabs { position: absolute; top: 0; left: 0; right: 0; height: 44px; z-index: 3; display: flex; align-items: center;
+    gap: 4px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .tabs b { margin-right: 10px; font-size: 15px; }
+  .tabs a { padding: 7px 12px; border-radius: 6px; color: var(--fg); text-decoration: none; }
+  .tabs a.on { background: var(--accent); color: var(--accent-fg); }
+  .panel { position: absolute; top: 56px; left: 12px; z-index: 2; width: 280px;
+    max-width: calc(100vw - 24px); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.18); backdrop-filter: blur(6px); }
+  .panel header { display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; cursor: pointer; user-select: none; }
+  .panel h1 { font-size: 15px; margin: 0; }
+  .panel h1 small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  .panel .body { padding: 0 12px 12px; border-top: 1px solid var(--line); }
+  .panel.collapsed .body { display: none; }
+  .chev { color: var(--muted); transition: transform .2s; }
+  .panel.collapsed .chev { transform: rotate(-90deg); }
+  fieldset { border: 0; padding: 0; margin: 12px 0 0; }
+  legend { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+  label { display: flex; align-items: center; gap: 6px; margin: 4px 0; cursor: pointer; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { font: inherit; border: 1px solid var(--line); background: transparent; color: var(--fg);
+    padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  #result { margin-top: 6px; color: var(--muted); font-size: 12px; min-height: 1.4em; }
+  #status { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 2;
+    background: var(--panel); border: 1px solid var(--line); padding: 6px 12px; border-radius: 6px; font-size: 13px; }
+  #status:empty { display: none; }
+  .ol-mouse-position { top: auto; bottom: 8px; right: 8px; background: var(--panel); color: var(--fg);
+    padding: 3px 8px; border-radius: 4px; font: 12px ui-monospace, Menlo, monospace; }
+  .ol-scale-line { left: auto; right: 8px; bottom: 36px; }
+  .ol-zoom { top: auto; bottom: 70px; left: auto; right: 8px; }
+  .ol-attribution { bottom: 8px; right: auto; left: 8px; }
+  .tip { background: rgba(0,0,0,.75); color: #fff; padding: 3px 7px; border-radius: 4px;
+    font-size: 12px; white-space: nowrap; pointer-events: none; }
+  @media (max-width: 600px) { .ol-mouse-position { display: none; } }
+  .panel .body { max-height: calc(100vh - 90px); overflow-y: auto; }
+  input[type=search] { font: inherit; width: 100%; padding: 6px 8px; border: 1px solid var(--line);
+    border-radius: 6px; background: transparent; color: var(--fg); }
+  .note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .popup { position: relative; width: 300px; max-width: calc(100vw - 40px); background: var(--panel); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 22px rgba(0,0,0,.28);
+    padding: 12px 14px; font-size: 13px; }
+  .popup::after { content: ""; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
+    border: 8px solid transparent; border-bottom: 0; border-top-color: var(--panel); }
+  .popup h2 { font-size: 15px; margin: 0 22px 2px 0; }
+  .popup .sub { color: var(--muted); margin-bottom: 8px; }
+  .popup dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; }
+  .popup dt { color: var(--muted); }
+  .popup dd { margin: 0; overflow-wrap: anywhere; }
+  .popup .close { position: absolute; top: 6px; right: 6px; border: 0; padding: 2px 7px; font-size: 16px; }
+</style>
+</head>
+<body>
+<nav class="tabs">
+  <b>Gleba Bacurizal</b>
+  <a href="lotes.html" class="on">Ortofoto e lotes</a>
+  <a href="historico.html">Histórico de abertura</a>
+</nav>
+<div id="map"></div>
+
+<section class="panel" id="panel">
+  <header id="toggle">
+    <h1>Gleba Bacurizal<small>Ortofoto de drone · 10/10/2026 · 10 cm/pixel</small></h1>
+    <span class="chev">▾</span>
+  </header>
+  <div class="body">
+    <fieldset>
+      <legend>Ortofoto</legend>
+      <label><input type="checkbox" id="orthoOn" checked> Mostrar ortofoto</label>
+      <input type="range" id="opacity" min="0" max="100" value="100" aria-label="Transparência">
+    </fieldset>
+    <fieldset>
+      <legend>Gleba</legend>
+      <label><input type="checkbox" id="perimOn" checked> Perímetro (1.684,90 ha)</label>
+      <label><input type="checkbox" id="vertOn"> Vértices do memorial (173)</label>
+      <label><input type="checkbox" id="lotesOn" checked> Lotes (planta de 16/09/2026)</label>
+      <input type="search" id="busca" placeholder="Ir para o lote nº…" aria-label="Buscar lote" style="margin-top:8px">
+      <div class="note" id="lotesNote"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Mapa de fundo</legend>
+      <label><input type="radio" name="base" value="sat" checked> Satélite</label>
+      <label><input type="radio" name="base" value="osm"> Mapa de ruas</label>
+      <label><input type="radio" name="base" value="none"> Nenhum</label>
+    </fieldset>
+    <fieldset>
+      <legend>Medir</legend>
+      <div class="row">
+        <button data-measure="LineString">Distância</button>
+        <button data-measure="Polygon">Área</button>
+        <button id="clear">Limpar</button>
+      </div>
+      <div id="result">Clique no mapa para começar; duplo clique termina.</div>
+    </fieldset>
+    <fieldset>
+      <legend>Compartilhar</legend>
+      <div class="row">
+        <button id="share">Copiar link desta vista</button>
+        <button id="home">Ver tudo</button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+<div id="status">Carregando ortofoto…</div>
+
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.12.1/dist/proj4.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ol@10.2.1/dist/ol.js"></script>
+<script>
+const UTM = 'EPSG:31981';
+proj4.defs(UTM, '+proj=utm +zone=21 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs');
+ol.proj.proj4.register(proj4);
+
+const status = document.getElementById('status');
+
+const ORTO_EXT = [205999.96, 8430574.15, 213986.21, 8435796.03];
+const orthoSource = new ol.source.XYZ({ url: 'orto/{z}/{x}/{y}.webp', minZoom: 12, maxZoom: 19, transition: 0 });
+const ortho = new ol.layer.Tile({ source: orthoSource, extent: ORTO_EXT });
+
+const bases = {
+  sat: new ol.layer.Tile({ source: new ol.source.XYZ({
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attributions: 'Fundo: Esri, Maxar, Earthstar Geographics', maxZoom: 19, crossOrigin: 'anonymous' }) }),
+  osm: new ol.layer.Tile({ source: new ol.source.OSM(), visible: false }),
+};
+
+const measureSource = new ol.source.Vector();
+const measureLayer = new ol.layer.Vector({
+  source: measureSource,
+  style: new ol.style.Style({
+    stroke: new ol.style.Stroke({ color: '#ffcc00', width: 3 }),
+    fill: new ol.style.Fill({ color: 'rgba(255,204,0,.18)' }),
+  }),
+});
+
+const fmtLonLat = c => {
+  const [lon, lat] = ol.proj.toLonLat(c, UTM);
+  return `${Math.abs(lat).toFixed(6)}°${lat < 0 ? 'S' : 'N'} ${Math.abs(lon).toFixed(6)}°${lon < 0 ? 'O' : 'L'}  ·  E ${c[0].toFixed(1)} N ${c[1].toFixed(1)}`;
+};
+
+const map = new ol.Map({
+  target: 'map',
+  layers: [bases.sat, bases.osm, ortho, measureLayer],
+  controls: ol.control.defaults.defaults({ attributionOptions: { collapsible: true } }).extend([
+    new ol.control.ScaleLine(),
+    new ol.control.MousePosition({ coordinateFormat: fmtLonLat, projection: UTM }),
+  ]),
+});
+
+let homeExtent = ORTO_EXT;
+{
+  const view = new ol.View({ projection: UTM, maxZoom: 28, constrainResolution: false });
+  map.setView(view);
+  if (!applyHash()) view.fit(homeExtent, { padding: [20, 20, 20, 20] });
+  view.on('change', debounce(writeHash, 300));
+}
+let _pend = 0;
+orthoSource.on('tileloadstart', () => _pend++);
+orthoSource.on(['tileloadend', 'tileloaderror'], () => { if (--_pend <= 0) status.textContent = ''; });
+
+document.getElementById('toggle').onclick = () => document.getElementById('panel').classList.toggle('collapsed');
+if (window.innerWidth < 600) document.getElementById('panel').classList.add('collapsed');
+document.getElementById('orthoOn').onchange = e => ortho.setVisible(e.target.checked);
+document.getElementById('opacity').oninput = e => ortho.setOpacity(e.target.value / 100);
+document.querySelectorAll('input[name=base]').forEach(r => r.onchange = () => {
+  for (const k in bases) bases[k].setVisible(k === r.value);
+});
+document.getElementById('home').onclick = () => homeExtent && map.getView().fit(homeExtent, { duration: 400 });
+
+let draw, tip;
+const result = document.getElementById('result');
+const fmtLen = m => m > 1000 ? (m / 1000).toFixed(2) + ' km' : m.toFixed(1) + ' m';
+const fmtArea = a => `${(a / 1e4).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha (${Math.round(a).toLocaleString('pt-BR')} m²)`;
+const measure = g => g instanceof ol.geom.Polygon
+  ? fmtArea(ol.sphere.getArea(g, { projection: UTM }))
+  : fmtLen(ol.sphere.getLength(g, { projection: UTM }));
+
+function stopDraw() {
+  if (draw) map.removeInteraction(draw);
+  draw = null;
+  document.querySelectorAll('[data-measure]').forEach(b => b.classList.remove('on'));
+}
+document.querySelectorAll('[data-measure]').forEach(btn => btn.onclick = () => {
+  const wasOn = btn.classList.contains('on');
+  stopDraw();
+  if (wasOn) return;
+  btn.classList.add('on');
+  draw = new ol.interaction.Draw({ source: measureSource, type: btn.dataset.measure });
+  map.addInteraction(draw);
+  draw.on('drawstart', e => {
+    const el = document.createElement('div'); el.className = 'tip';
+    tip = new ol.Overlay({ element: el, offset: [0, -12], positioning: 'bottom-center' });
+    map.addOverlay(tip);
+    e.feature.getGeometry().on('change', ev => {
+      const g = ev.target;
+      el.textContent = result.textContent = measure(g);
+      tip.setPosition(g instanceof ol.geom.Polygon ? g.getInteriorPoint().getCoordinates() : g.getLastCoordinate());
+    });
+  });
+  draw.on('drawend', () => { tip = null; });
+});
+document.getElementById('clear').onclick = () => {
+  stopDraw(); measureSource.clear();
+  map.getOverlays().clear();
+  result.textContent = 'Clique no mapa para começar; duplo clique termina.';
+};
+
+function writeHash() {
+  const v = map.getView();
+  const [lon, lat] = ol.proj.toLonLat(v.getCenter(), UTM);
+  history.replaceState(null, '', `#${v.getZoom().toFixed(2)}/${lat.toFixed(6)}/${lon.toFixed(6)}`);
+}
+function applyHash() {
+  const p = location.hash.slice(1).split('/').map(Number);
+  if (p.length !== 3 || p.some(isNaN)) return false;
+  const v = map.getView();
+  v.setCenter(ol.proj.fromLonLat([p[2], p[1]], UTM));
+  v.setZoom(p[0]);
+  return true;
+}
+document.getElementById('share').onclick = async e => {
+  writeHash();
+  try { await navigator.clipboard.writeText(location.href); e.target.textContent = 'Link copiado!'; }
+  catch { prompt('Copie o link:', location.href); }
+  setTimeout(() => e.target.textContent = 'Copiar link desta vista', 1800);
+};
+function debounce(fn, ms) { let t; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; }
+
+const geojson = new ol.format.GeoJSON({ dataProjection: 'EPSG:4326', featureProjection: UTM });
+const loadGeoJSON = url => fetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
+
+const perimLayer = new ol.layer.Vector({
+  source: new ol.source.Vector(),
+  style: [
+    new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,.55)', width: 5 }) }),
+    new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#ffffff', width: 2.2 }) }),
+  ],
+});
+const vertLayer = new ol.layer.Vector({
+  source: new ol.source.Vector(), visible: false,
+  style: (f, res) => new ol.style.Style({
+    image: new ol.style.Circle({ radius: 3.5, fill: new ol.style.Fill({ color: '#fff' }),
+      stroke: new ol.style.Stroke({ color: '#000', width: 1.2 }) }),
+    text: res < 3 ? new ol.style.Text({ text: f.get('Name'), font: '11px system-ui', offsetY: -10,
+      fill: new ol.style.Fill({ color: '#fff' }), stroke: new ol.style.Stroke({ color: '#000', width: 3 }) }) : undefined,
+  }),
+});
+
+const COR_LOTE = '#ffd54a';
+const numLote = f => String(f.get('lote') ?? '');
+const styleCache = {};
+const lotesLayer = new ol.layer.Vector({
+  source: new ol.source.Vector(),
+  style: (f, res) => {
+    const sel = f === selecionado;
+    const key = (sel ? 's' : '') + (res < 12 ? 'l' : '');
+    const st = styleCache[key] ??= new ol.style.Style({
+      stroke: new ol.style.Stroke({ color: sel ? '#ffffff' : COR_LOTE, width: sel ? 3.5 : 2 }),
+      fill: new ol.style.Fill({ color: sel ? 'rgba(255,255,255,.18)' : 'rgba(255,213,74,.06)' }),
+      text: res < 12 ? new ol.style.Text({ font: 'bold 13px system-ui', overflow: true,
+        fill: new ol.style.Fill({ color: '#fff' }), stroke: new ol.style.Stroke({ color: '#000', width: 3 }) }) : undefined,
+    });
+    st.getText()?.setText(numLote(f));
+    return st;
+  },
+});
+map.getLayers().insertAt(map.getLayers().getLength() - 1, lotesLayer);
+map.getLayers().insertAt(map.getLayers().getLength() - 1, perimLayer);
+map.getLayers().insertAt(map.getLayers().getLength() - 1, vertLayer);
+
+document.getElementById('perimOn').onchange = e => perimLayer.setVisible(e.target.checked);
+document.getElementById('vertOn').onchange = e => vertLayer.setVisible(e.target.checked);
+document.getElementById('lotesOn').onchange = e => lotesLayer.setVisible(e.target.checked);
+
+const note = document.getElementById('lotesNote');
+Promise.all([loadGeoJSON('perimetro.geojson'), loadGeoJSON('vertices.geojson'), loadGeoJSON('lotes.geojson')])
+.then(([perim, vert, lotes]) => {
+  if (perim) perimLayer.getSource().addFeatures(geojson.readFeatures(perim));
+  if (vert) vertLayer.getSource().addFeatures(geojson.readFeatures(vert));
+  if (lotes) {
+    lotesLayer.getSource().addFeatures(geojson.readFeatures(lotes));
+    note.textContent = `${lotesLayer.getSource().getFeatures().length} lotes carregados. Clique num lote para ver a ficha.`;
+  } else {
+    note.textContent = 'Desenho dos lotes ainda não carregado (falta lotes.geojson).';
+  }
+});
+
+let selecionado = null;
+const popEl = document.createElement('div');
+popEl.className = 'popup';
+const popup = new ol.Overlay({ element: popEl, positioning: 'bottom-center', offset: [0, -10],
+  autoPan: { animation: { duration: 250 } } });
+map.addOverlay(popup);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtHa = ha => ha == null ? '' :
+  Number(ha).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) + ' ha';
+
+function abrirFicha(f, coord) {
+  selecionado = f; lotesLayer.changed();
+  const p = f.getProperties();
+  const linha = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : '';
+  popEl.innerHTML = `
+    <button class="close" aria-label="Fechar">×</button>
+    <h2>Lote ${esc(p.lote)}${p.propriedade ? ' · ' + esc(p.propriedade) : ''}</h2>
+    <div class="sub">${esc(p.proprietario)}</div>
+    <dl>
+      ${linha('Área (planta)', fmtHa(p.area_oficial_ha))}
+      ${linha('Área do polígono', fmtHa(p.area_poligono_ha))}
+    </dl>`;
+  popEl.querySelector('.close').onclick = fecharFicha;
+  popup.setPosition(coord ?? ol.extent.getCenter(f.getGeometry().getExtent()));
+}
+function fecharFicha() { selecionado = null; popup.setPosition(undefined); lotesLayer.changed(); }
+
+map.on('singleclick', e => {
+  if (draw) return;
+  const f = map.forEachFeatureAtPixel(e.pixel, f => f, { layerFilter: l => l === lotesLayer });
+  f ? abrirFicha(f, e.coordinate) : fecharFicha();
+});
+map.on('pointermove', e => {
+  if (e.dragging) return;
+  map.getTargetElement().style.cursor =
+    !draw && map.hasFeatureAtPixel(e.pixel, { layerFilter: l => l === lotesLayer }) ? 'pointer' : '';
+});
+
+document.getElementById('busca').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const alvo = e.target.value.trim().toUpperCase();
+  const f = lotesLayer.getSource().getFeatures().find(f => numLote(f) === alvo);
+  if (!f) { e.target.setCustomValidity('Lote não encontrado'); e.target.reportValidity(); return; }
+  e.target.setCustomValidity('');
+  map.getView().fit(f.getGeometry().getExtent(), { padding: [80, 80, 80, 80], duration: 500, maxZoom: 20 });
+  setTimeout(() => abrirFicha(f), 520);
+});
+</script>
+</body>
+</html>
